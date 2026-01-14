@@ -1,69 +1,130 @@
 import streamlit as st
 import random
 
-# --- データの保存場所（セッションステート）の設定 ---
-if "game_started" not in st.session_state:
-    st.session_state.game_started = False
-    st.session_state.player_cards = []
-    st.session_state.dealer_cards = []
-    st.session_state.score = 0
+# ページの設定
+st.set_page_config(page_title="本格ブラックジャック", layout="centered")
 
-# --- 関数定義：カードの数値を計算 ---
-def calculate_total(cards):
-    total = sum([min(10, c) if c > 1 else 11 for c in cards])
-    # エースの調整（21を超えたら11を1に読み替える）
-    num_aces = cards.count(1)
-    while total > 21 and num_aces > 0:
-        total -= 10
-        num_aces -= 1
-    return total
+# カスタムCSSで背景をカジノ風の緑に
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #2f4f4f;
+    }
+    h1, h2, h3, p {
+        color: white !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# --- 画面表示 ---
-st.title("🃏 ブラックジャック Online")
-st.write(f"現在の賞金: {st.session_state.score} 円")
+st.title("🃏 本格ブラックジャック")
 
-# スタートボタン
-if not st.session_state.game_started:
-    if st.button("ゲームスタート"):
-        st.session_state.player_cards = [random.randint(1, 13), random.randint(1, 13)]
-        st.session_state.dealer_cards = [random.randint(1, 13), random.randint(1, 13)]
-        st.session_state.game_started = True
+# --- データ管理（セッションステート） ---
+if "money" not in st.session_state:
+    st.session_state.money = 0  # 獲得賞金
+if "game_status" not in st.session_state:
+    st.session_state.game_status = "waiting"  # waiting, playing, result
+if "player_hand" not in st.session_state:
+    st.session_state.player_hand = []
+if "dealer_hand" not in st.session_state:
+    st.session_state.dealer_hand = []
+
+# --- 便利関数 ---
+def draw_card():
+    return random.randint(1, 13)
+
+def get_score(hand):
+    score = 0
+    aces = 0
+    for card in hand:
+        if card > 10:
+            score += 10
+        elif card == 1:
+            aces += 1
+            score += 11
+        else:
+            score += card
+    while score > 21 and aces > 0:
+        score -= 10
+        aces -= 1
+    return score
+
+# --- メインロジック ---
+st.sidebar.metric("現在の獲得賞金", f"{st.session_state.money} 円")
+
+if st.session_state.game_status == "waiting":
+    if st.button("ゲームスタート", key="start"):
+        st.session_state.player_hand = [draw_card(), draw_card()]
+        st.session_state.dealer_hand = [draw_card(), draw_card()]
+        st.session_state.game_status = "playing"
         st.rerun()
 
-# ゲーム進行中
-if st.session_state.game_started:
-    p_total = calculate_total(st.session_state.player_cards)
-    
-    # ディーラーの表示（最初は1枚隠す）
+elif st.session_state.game_status == "playing":
+    p_score = get_score(st.session_state.player_hand)
+
+    # ディーラーの表示
     st.subheader("ディーラーのカード")
-    d_cols = st.columns(5)
-    d_cols[0].image(f"image/{st.session_state.dealer_cards[0]}.png", width=100)
-    d_cols[1].image("image/トランプ_裏.png", width=100) # 2枚目は裏
+    cols = st.columns(5)
+    cols[0].image(f"image/{st.session_state.dealer_hand[0]}.png", width=100)
+    cols[1].image("image/トランプ_裏.png", width=100)
 
     # プレイヤーの表示
-    st.subheader(f"あなたのカード (合計: {p_total})")
-    p_cols = st.columns(5)
-    for i, card in enumerate(st.session_state.player_cards):
-        p_cols[i].image(f"image/{card}.png", width=100)
+    st.subheader(f"あなたのカード (合計: {p_score})")
+    cols = st.columns(5)
+    for i, card in enumerate(st.session_state.player_hand):
+        cols[i].image(f"image/{card}.png", width=100)
 
     # 操作ボタン
-    if p_total <= 21:
-        col_h, col_s = st.columns(2)
-        if col_h.button("ヒット"):
-            st.session_state.player_cards.append(random.randint(1, 13))
-            st.rerun()
+    col1, col2 = st.columns(2)
+    if col1.button("ヒット"):
+        st.session_state.player_hand.append(draw_card())
+        if get_score(st.session_state.player_hand) > 21:
+            st.session_state.game_status = "result"
+            st.session_state.money -= 10
+        st.rerun()
+
+    if col2.button("スタンド"):
+        st.session_state.game_status = "result"
+        # ディーラーが17以上になるまで引く
+        while get_score(st.session_state.dealer_hand) < 17:
+            st.session_state.dealer_hand.append(draw_card())
         
-        if col_s.button("スタンド"):
-            # ディーラーが17以上になるまで引く
-            while calculate_total(st.session_state.dealer_cards) < 17:
-                st.session_state.dealer_cards.append(random.randint(1, 13))
-            
-            # 判定ロジック（ここを完成させると遊べます！）
-            d_total = calculate_total(st.session_state.dealer_cards)
-            st.write(f"ディーラー合計: {d_total}")
-            # ...判定後に st.session_state.game_started = False に戻す
+        # 勝敗判定と賞金の計算
+        p_final = get_score(st.session_state.player_hand)
+        d_final = get_score(st.session_state.dealer_hand)
+        
+        if d_final > 21 or p_final > d_final:
+            st.session_state.money += 10
+        elif p_final < d_final:
+            st.session_state.money -= 10
+        st.rerun()
+
+elif st.session_state.game_status == "result":
+    p_score = get_score(st.session_state.player_hand)
+    d_score = get_score(st.session_state.dealer_hand)
+
+    # 全カード公開表示
+    st.subheader(f"ディーラーの合計: {d_score}")
+    cols = st.columns(5)
+    for i, card in enumerate(st.session_state.dealer_hand):
+        cols[i].image(f"image/{card}.png", width=100)
+
+    st.subheader(f"あなたの合計: {p_score}")
+    cols = st.columns(5)
+    for i, card in enumerate(st.session_state.player_hand):
+        cols[i].image(f"image/{card}.png", width=100)
+
+    # 結果メッセージ
+    if p_score > 21:
+        st.error("バーストしました！あなたの負けです（-10円）")
+    elif d_score > 21:
+        st.success("ディーラーがバースト！あなたの勝ちです（+10円）")
+    elif p_score > d_score:
+        st.success("おめでとうございます！あなたの勝ちです（+10円）")
+    elif p_score < d_score:
+        st.error("残念！ディーラーの勝ちです（-10円）")
     else:
-        st.error("バースト！あなたの負けです。")
-        if st.button("もう一回"):
-            st.session_state.game_started = False
-            st.rerun()
+        st.warning("引き分けです")
+
+    if st.button("もう一度プレイする"):
+        st.session_state.game_status = "waiting"
+        st.rerun()
