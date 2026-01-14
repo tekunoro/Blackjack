@@ -2,7 +2,7 @@ import streamlit as st
 import random
 
 # ページの設定：タイトルとレイアウト
-st.set_page_config(page_title="本格ブラックジャック", layout="centered")
+st.set_page_config(page_title="ブラックジャック", layout="centered")
 
 # --- デザイン調整（CSS） ---
 # どんな背景モードでも文字が見えるようにし、テーブルを緑色に固定します
