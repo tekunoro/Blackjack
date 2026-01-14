@@ -1,149 +1,131 @@
 import streamlit as st
 import random
 
-# ページの設定：タイトルとレイアウト
-st.set_page_config(page_title="ブラックジャック", layout="centered")
+# ページ全体のデザイン設定
+st.set_page_config(page_title="VIP Blackjack Room", layout="centered")
 
-# --- デザイン調整（CSS） ---
-# どんな背景モードでも文字が見えるようにし、テーブルを緑色に固定します
+# --- 高級カジノ風デザイン（最新CSS） ---
 st.markdown("""
     <style>
-    /* アプリ全体の背景をカジノグリーンに */
+    /* 深みのあるフェルトテーブルの質感をグラデーションで再現 */
     .stApp {
-        background-color: #1e3d2f;
+        background: radial-gradient(circle, #2e5d48 0%, #1a3026 100%);
     }
-    /* すべての文字を白に固定し、縁取りをつけて読みやすくする */
+    
+    /* 文字に高級感のあるゴールドとホワイトの影を適用 */
     h1, h2, h3, p, span, div {
-        color: #ffffff !important;
-        text-shadow: 1px 1px 2px #000000;
+        color: #fdfdfd !important;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        font-family: 'Georgia', serif;
     }
-    /* ボタンのスタイル調整 */
-    .stButton>button {
-        width: 100%;
+
+    /* メトリック（賞金表示）をカード状にデザイン */
+    [data-testid="stMetricValue"] {
+        background: rgba(0,0,0,0.3);
+        padding: 10px;
         border-radius: 10px;
-        height: 3em;
-        background-color: #2e5d48;
-        color: white !important;
-        border: 1px solid #ffffff;
+        border: 1px solid #d4af37; /* ゴールドの縁取り */
+        color: #d4af37 !important;
+    }
+
+    /* ボタンを光沢のある高級仕様に */
+    .stButton>button {
+        background: linear-gradient(145deg, #b8860b, #8b4513);
+        color: gold !important;
+        border: 2px solid #d4af37;
+        border-radius: 5px;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        transition: all 0.3s;
     }
     .stButton>button:hover {
-        background-color: #3e7d61;
-        border: 1px solid #ffeb3b;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(212,175,55,0.4);
+        border: 2px solid #fff;
+    }
+    
+    /* カードの背景に影をつけて浮かび上がらせる */
+    [data-testid="stImage"] {
+        filter: drop-shadow(5px 5px 10px rgba(0,0,0,0.5));
+        border-radius: 5px;
     }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🃏 本格ブラックジャック")
+# --- ゲームシステム ---
+if "money" not in st.session_state: st.session_state.money = 0
+if "status" not in st.session_state: st.session_state.status = "waiting"
+if "p_hand" not in st.session_state: st.session_state.p_hand = []
+if "d_hand" not in st.session_state: st.session_state.d_hand = []
 
-# --- データ管理（セッションステート） ---
-if "money" not in st.session_state:
-    st.session_state.money = 0
-if "game_status" not in st.session_state:
-    st.session_state.game_status = "waiting"
-if "player_hand" not in st.session_state:
-    st.session_state.player_hand = []
-if "dealer_hand" not in st.session_state:
-    st.session_state.dealer_hand = []
+def draw(): return random.randint(1, 13)
 
-# --- 便利関数 ---
-def draw_card():
-    return random.randint(1, 13)
+def score(hand):
+    val = sum([min(10, c) if c > 1 else 11 for c in hand])
+    aces = hand.count(1)
+    while val > 21 and aces > 0: val -= 10; aces -= 1
+    return val
 
-def get_score(hand):
-    score = 0
-    aces = 0
-    for card in hand:
-        if card > 10: score += 10
-        elif card == 1:
-            aces += 1
-            score += 11
-        else: score += card
-    while score > 21 and aces > 0:
-        score -= 10
-        aces -= 1
-    return score
+# --- メイン画面 ---
+st.title("⚜️ VIP BLACKJACK ROOM")
+st.metric("TOTAL BANK", f"{st.session_state.money} JPY")
 
-# --- 画面構成 ---
-# 現在の賞金を最上部に表示
-st.subheader(f"💰 獲得賞金合計: {st.session_state.money} 円")
-st.write("---")
-
-if st.session_state.game_status == "waiting":
-    col_start, _ = st.columns([1, 2])
-    if col_start.button("ゲームスタート"):
-        st.session_state.player_hand = [draw_card(), draw_card()]
-        st.session_state.dealer_hand = [draw_card(), draw_card()]
-        st.session_state.game_status = "playing"
+if st.session_state.status == "waiting":
+    st.write("### テーブルへようこそ。勝負を始めますか？")
+    if st.button("PLACE BET & START"):
+        st.session_state.p_hand = [draw(), draw()]
+        st.session_state.d_hand = [draw(), draw()]
+        st.session_state.status = "playing"
         st.rerun()
 
-elif st.session_state.game_status == "playing":
-    p_score = get_score(st.session_state.player_hand)
-
-    # ディーラー
-    st.write("### ディーラーのカード")
+elif st.session_state.status == "playing":
+    # ディーラー側
+    st.write("#### DEALER'S HAND")
     d_cols = st.columns(6)
-    d_cols[0].image(f"image/{st.session_state.dealer_hand[0]}.png", width=90)
-    d_cols[1].image("image/トランプ_裏.png", width=90)
+    d_cols[0].image(f"image/{st.session_state.d_hand[0]}.png", width=100)
+    d_cols[1].image("image/トランプ_裏.png", width=100)
 
-    # プレイヤー
-    st.write(f"### あなたのカード (合計: {p_score})")
+    # プレイヤー側
+    ps = score(st.session_state.p_hand)
+    st.write(f"#### YOUR HAND (Score: {ps})")
     p_cols = st.columns(6)
-    for i, card in enumerate(st.session_state.player_hand):
-        p_cols[i].image(f"image/{card}.png", width=90)
+    for i, c in enumerate(st.session_state.p_hand):
+        p_cols[i].image(f"image/{c}.png", width=100)
 
-    # 操作ボタン
-    st.write("")
-    col_h, col_s, _ = st.columns([1, 1, 2])
-    if col_h.button("ヒット"):
-        st.session_state.player_hand.append(draw_card())
-        if get_score(st.session_state.player_hand) > 21:
-            st.session_state.game_status = "result"
-            st.session_state.money -= 10
-        st.rerun()
-
-    if col_s.button("スタンド"):
-        st.session_state.game_status = "result"
-        while get_score(st.session_state.dealer_hand) < 17:
-            st.session_state.dealer_hand.append(draw_card())
-        
-        p_final = get_score(st.session_state.player_hand)
-        d_final = get_score(st.session_state.dealer_hand)
-        
-        if d_final > 21 or p_final > d_final:
-            st.session_state.money += 10
-        elif p_final < d_final:
-            st.session_state.money -= 10
-        st.rerun()
-
-elif st.session_state.game_status == "result":
-    p_score = get_score(st.session_state.player_hand)
-    d_score = get_score(st.session_state.dealer_hand)
-
-    # ディーラー全公開
-    st.write(f"### ディーラーの合計: {d_score}")
-    d_cols = st.columns(6)
-    for i, card in enumerate(st.session_state.dealer_hand):
-        d_cols[i].image(f"image/{card}.png", width=90)
-
-    # プレイヤー
-    st.write(f"### あなたの合計: {p_score}")
-    p_cols = st.columns(6)
-    for i, card in enumerate(st.session_state.player_hand):
-        p_cols[i].image(f"image/{card}.png", width=90)
-
-    # 結果判定
+    # アクション
     st.write("---")
-    if p_score > 21:
-        st.error("❌ バースト！負けです（-10円）")
-    elif d_score > 21:
-        st.success("✨ ディーラーがバースト！勝ちです（+10円）")
-    elif p_score > d_score:
-        st.success("✨ あなたの勝ちです！（+10円）")
-    elif p_score < d_score:
-        st.error("❌ ディーラーの勝ちです（-10円）")
-    else:
-        st.info("🤝 引き分けです（±0円）")
+    c1, c2, _ = st.columns([1,1,2])
+    if c1.button("HIT"):
+        st.session_state.p_hand.append(draw())
+        if score(st.session_state.p_hand) > 21:
+            st.session_state.status = "result"; st.session_state.money -= 10
+        st.rerun()
+    if c2.button("STAND"):
+        st.session_state.status = "result"
+        while score(st.session_state.d_hand) < 17:
+            st.session_state.d_hand.append(draw())
+        ds, ps = score(st.session_state.d_hand), score(st.session_state.p_hand)
+        if ds > 21 or ps > ds: st.session_state.money += 10
+        elif ps < ds: st.session_state.money -= 10
+        st.rerun()
 
-    if st.button("もう一度プレイする"):
-        st.session_state.game_status = "waiting"
+elif st.session_state.status == "result":
+    ds, ps = score(st.session_state.d_hand), score(st.session_state.p_hand)
+    
+    st.write(f"#### DEALER (Final: {ds})")
+    dc = st.columns(6)
+    for i, c in enumerate(st.session_state.d_hand): dc[i].image(f"image/{c}.png", width=100)
+
+    st.write(f"#### YOU (Final: {ps})")
+    pc = st.columns(6)
+    for i, c in enumerate(st.session_state.p_hand): pc[i].image(f"image/{c}.png", width=100)
+
+    st.write("---")
+    if ps > 21: st.error("💥 BUST! You Lost 10 JPY")
+    elif ds > 21 or ps > ds: st.success("🏆 WIN! You Gained 10 JPY")
+    elif ps < ds: st.error("💀 DEALER WINS! You Lost 10 JPY")
+    else: st.warning("⚖️ PUSH (Draw)")
+
+    if st.button("PLAY NEXT HAND"):
+        st.session_state.status = "waiting"
         st.rerun()
